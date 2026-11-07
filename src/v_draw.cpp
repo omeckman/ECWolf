@@ -1151,7 +1151,7 @@ void DCanvas::Clear (int left, int top, int right, int bottom, int palcolor, uin
 
 void DCanvas::FillSimplePoly(FTexture *tex, FVector2 *points, int npoints,
 	double originx, double originy, double scalex, double scaley, angle_t rotation,
-	FDynamicColormap *colormap, int lightlevel, int palcolor, uint32 rgbcolor)
+	FDynamicColormap *colormap, int lightlevel, int palcolor, uint32 rgbcolor, const BYTE *remap)
 {
 #ifndef NO_SWRENDER
 	// Use an equation similar to player sprites to determine shade
@@ -1295,6 +1295,12 @@ void DCanvas::FillSimplePoly(FTexture *tex, FVector2 *points, int npoints,
 						ds_yfrac = xs_RoundToInt(tex.Y * scaley);
 
 						R_DrawSpan();
+					}
+					else if(remap)
+					{
+						BYTE *dest = this->Buffer + y * this->Pitch + x1;
+						for(int i = x1;i < x2;++i, ++dest)
+							*dest = remap[*dest];
 					}
 					else
 						memset(this->Buffer + y * this->Pitch + x1, palcolor, x2 - x1);

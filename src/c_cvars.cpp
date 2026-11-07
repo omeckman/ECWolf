@@ -57,6 +57,19 @@ bool alwaysrun;
 bool mouseenabled, mouseyaxisdisabled, joystickenabled;
 float localDesiredFOV = 90.0f;
 
+static FString AM_KindSettingName(unsigned int kind, const char *setting)
+{
+	static const char* const kindPrefix[NUM_AMKINDS] = { "AM_", "AM_Overlay", "AM_Minimap" };
+
+	FString name;
+	name.Format("%s%s", kindPrefix[kind], setting);
+	return name;
+}
+static const char* const AMShowSettings[NUM_AMSHOW] = {
+	"ShowSecretWalls", "ShowKeys", "ShowWeapons", "ShowAmmo", "ShowHealth", "ShowTreasure", "ShowExtraLives",
+	"ShowCorpses"
+};
+
 #if SDL_VERSION_ATLEAST(2,0,0)
 // Convert SDL1 keycode to SDL2 scancode
 static const SDL_Scancode SDL2ConversionTable[323] = {
@@ -200,12 +213,35 @@ void ReadConfig(void)
 	config.CreateSetting("MoveBob", FRACUNIT);
 	config.CreateSetting("Gamma", 1.0f);
 	config.CreateSetting("AM_Rotate", 0);
+	// AM_Rotate used to be Off/On/Overlay
+	const bool oldRotate = config.GetSetting("AM_Rotate")->GetInteger() != 0;
+	config.CreateSetting("AM_OverlayRotate", oldRotate);
+	config.CreateSetting("AM_MinimapRotate", oldRotate);
 	config.CreateSetting("AM_DrawTexturedWalls", true);
 	config.CreateSetting("AM_DrawFloors", false);
 	config.CreateSetting("AM_Overlay", 0);
 	config.CreateSetting("AM_OverlayTextured", false);
+	config.CreateSetting("AM_OverlayFloors", false);
+	config.CreateSetting("AM_Minimap", 0);
+	config.CreateSetting("AM_MinimapSize", 6);
+	config.CreateSetting("AM_MinimapTranslucency", 0);
+	config.CreateSetting("AM_MinimapZoom", 6);
+	config.CreateSetting("AM_MinimapStyle", AMMS_Framed);
+	config.CreateSetting("AM_MinimapTextured", false);
+	config.CreateSetting("AM_MinimapFloors", false);
 	config.CreateSetting("AM_Pause", true);
 	config.CreateSetting("AM_ShowRatios", false);
+	config.CreateSetting("AM_RevealMap", AMRM_Off);
+	config.CreateSetting("AM_ThingSize", AMTS_Large);
+	config.CreateSetting("AM_MinimapActive", false);
+	for(unsigned int kind = 0;kind < NUM_AMKINDS;++kind)
+	{
+		config.CreateSetting(AM_KindSettingName(kind, "EnemyMode"), AMSM_Off);
+		config.CreateSetting(AM_KindSettingName(kind, "ObjectMode"), AMSM_Explored);
+		config.CreateSetting(AM_KindSettingName(kind, "DecorationMode"), AMDM_Off);
+		for(unsigned int what = 0;what < NUM_AMSHOW;++what)
+			config.CreateSetting(AM_KindSettingName(kind, AMShowSettings[what]), false);
+	}
 
 	char joySettingName[50] = {0};
 	char keySettingName[50] = {0};
@@ -276,13 +312,35 @@ void ReadConfig(void)
 	quitonescape = config.GetSetting("QuitOnEscape")->GetInteger() != 0;
 	movebob = config.GetSetting("MoveBob")->GetInteger();
 	screenGamma = static_cast<float>(config.GetSetting("Gamma")->GetFloat());
-	am_rotate = config.GetSetting("AM_Rotate")->GetInteger();
+	am_rotate = config.GetSetting("AM_Rotate")->GetInteger() == 1;
+	am_overlayrotate = config.GetSetting("AM_OverlayRotate")->GetInteger() != 0;
+	am_minimaprotate = config.GetSetting("AM_MinimapRotate")->GetInteger() != 0;
 	am_drawtexturedwalls = config.GetSetting("AM_DrawTexturedWalls")->GetInteger() != 0;
 	am_drawfloors = config.GetSetting("AM_DrawFloors")->GetInteger() != 0;
 	am_overlay = config.GetSetting("AM_Overlay")->GetInteger();
 	am_overlaytextured = config.GetSetting("AM_OverlayTextured")->GetInteger() != 0;
+	am_overlayfloors = config.GetSetting("AM_OverlayFloors")->GetInteger() != 0;
+	am_minimap = config.GetSetting("AM_Minimap")->GetInteger() != 0;
+	am_minimapsize = clamp(config.GetSetting("AM_MinimapSize")->GetInteger(), 0, AM_MINIMAPSIZE_MAX);
+	am_minimapzoom = clamp(config.GetSetting("AM_MinimapZoom")->GetInteger(), 0, AM_MINIMAPZOOM_MAX);
+	am_minimaptranslucency = clamp(config.GetSetting("AM_MinimapTranslucency")->GetInteger(), 0, AM_MINIMAPTRANSLUCENCY_MAX);
+	am_minimapstyle = config.GetSetting("AM_MinimapStyle")->GetInteger() == AMMS_Floating ? AMMS_Floating : AMMS_Framed;
+	am_minimaptextured = config.GetSetting("AM_MinimapTextured")->GetInteger() != 0;
+	am_minimapfloors = config.GetSetting("AM_MinimapFloors")->GetInteger() != 0;
 	am_pause = config.GetSetting("AM_Pause")->GetInteger() != 0;
 	am_showratios = config.GetSetting("AM_ShowRatios")->GetInteger() != 0;
+	am_revealmap = MIN<unsigned>(config.GetSetting("AM_RevealMap")->GetInteger(), AMRM_Full);
+	am_thingsize = config.GetSetting("AM_ThingSize")->GetInteger() == AMTS_Tile ? AMTS_Tile : AMTS_Large;
+	if(am_minimap && config.GetSetting("AM_MinimapActive")->GetInteger())
+		automap = AMA_Mini;
+	for(unsigned int kind = 0;kind < NUM_AMKINDS;++kind)
+	{
+		am_enemymode[kind] = MIN<unsigned>(config.GetSetting(AM_KindSettingName(kind, "EnemyMode"))->GetInteger(), AMSM_All);
+		am_objectmode[kind] = config.GetSetting(AM_KindSettingName(kind, "ObjectMode"))->GetInteger() == AMSM_All ? AMSM_All : AMSM_Explored;
+		am_decorationmode[kind] = MIN<unsigned>(config.GetSetting(AM_KindSettingName(kind, "DecorationMode"))->GetInteger(), AMDM_All);
+		for(unsigned int what = 0;what < NUM_AMSHOW;++what)
+			am_show[kind][what] = config.GetSetting(AM_KindSettingName(kind, AMShowSettings[what]))->GetInteger() != 0;
+	}
 
 	char hsName[50];
 	char hsScore[50];
@@ -420,12 +478,33 @@ void WriteConfig(void)
 	config.GetSetting("MoveBob")->SetValue(movebob);
 	config.GetSetting("Gamma")->SetValue(screenGamma);
 	config.GetSetting("AM_Rotate")->SetValue(am_rotate);
+	config.GetSetting("AM_OverlayRotate")->SetValue(am_overlayrotate);
+	config.GetSetting("AM_MinimapRotate")->SetValue(am_minimaprotate);
 	config.GetSetting("AM_DrawTexturedWalls")->SetValue(am_drawtexturedwalls);
 	config.GetSetting("AM_DrawFloors")->SetValue(am_drawfloors);
 	config.GetSetting("AM_Overlay")->SetValue(am_overlay);
 	config.GetSetting("AM_OverlayTextured")->SetValue(am_overlaytextured);
+	config.GetSetting("AM_OverlayFloors")->SetValue(am_overlayfloors);
+	config.GetSetting("AM_Minimap")->SetValue(am_minimap);
+	config.GetSetting("AM_MinimapSize")->SetValue(am_minimapsize);
+	config.GetSetting("AM_MinimapZoom")->SetValue(am_minimapzoom);
+	config.GetSetting("AM_MinimapTranslucency")->SetValue(am_minimaptranslucency);
+	config.GetSetting("AM_MinimapStyle")->SetValue(am_minimapstyle);
+	config.GetSetting("AM_MinimapTextured")->SetValue(am_minimaptextured);
+	config.GetSetting("AM_MinimapFloors")->SetValue(am_minimapfloors);
 	config.GetSetting("AM_Pause")->SetValue(am_pause);
 	config.GetSetting("AM_ShowRatios")->SetValue(am_showratios);
+	config.GetSetting("AM_RevealMap")->SetValue(am_revealmap);
+	config.GetSetting("AM_ThingSize")->SetValue(am_thingsize);
+	config.GetSetting("AM_MinimapActive")->SetValue(automap == AMA_Mini);
+	for(unsigned int kind = 0;kind < NUM_AMKINDS;++kind)
+	{
+		config.GetSetting(AM_KindSettingName(kind, "EnemyMode"))->SetValue(am_enemymode[kind]);
+		config.GetSetting(AM_KindSettingName(kind, "ObjectMode"))->SetValue(am_objectmode[kind]);
+		config.GetSetting(AM_KindSettingName(kind, "DecorationMode"))->SetValue(am_decorationmode[kind]);
+		for(unsigned int what = 0;what < NUM_AMSHOW;++what)
+			config.GetSetting(AM_KindSettingName(kind, AMShowSettings[what]))->SetValue(am_show[kind][what]);
+	}
 
 	char hsName[50];
 	char hsScore[50];

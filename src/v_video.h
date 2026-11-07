@@ -202,10 +202,10 @@ public:
 	// Fill an area with a texture
 	virtual void FlatFill (int left, int top, int right, int bottom, FTexture *src, bool local_origin=false);
 
-	// Fill a simple polygon with a texture
+	// Fill a simple polygon with a texture, color or remap table
 	virtual void FillSimplePoly(FTexture *tex, FVector2 *points, int npoints,
 		double originx, double originy, double scalex, double scaley, angle_t rotation,
-		struct FDynamicColormap *colormap, int lightlevel, int palcolor=0, uint32 rgbcolor=0);
+		struct FDynamicColormap *colormap, int lightlevel, int palcolor=0, uint32 rgbcolor=0, const BYTE *remap=NULL);
 
 	// Set an area to a specified color
 	virtual void Clear (int left, int top, int right, int bottom, int palcolor, uint32 color);

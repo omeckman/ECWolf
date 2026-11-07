@@ -7,6 +7,7 @@
 #endif
 
 #include "wl_def.h"
+#include "am_map.h"
 #include "wl_menu.h"
 #include "id_ca.h"
 #include "id_sd.h"
@@ -632,6 +633,7 @@ void NewViewSize (int width, unsigned int scrWidth, unsigned int scrHeight)
 
 	viewsize = width;
 	SetViewSize(scrWidth, scrHeight);
+	AM_ChangeResolution();
 }
 
 

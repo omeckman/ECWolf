@@ -58,7 +58,10 @@ Menu optionsMenu(80, 80, 190, 28);
 Menu soundBase(24, 45, 284, 24);
 Menu controlBase(CTL_X, CTL_Y, CTL_W, 56, EnterControlBase);
 Menu displayMenu(20, 75, 285, 56);
-Menu automapMenu(40, 55, 260, 56);
+Menu automapMenu(20, 55, 295, 56);
+Menu amFullMenu(20, 24, 295, 56);
+Menu amOverlayMenu(20, 24, 295, 56);
+Menu amMinimapMenu(20, 24, 295, 56);
 Menu mouseSensitivity(20, 50, 300, 24);
 Menu joySensitivity(20, 30, 300, 24);
 Menu playerClasses(NM_X, NM_Y, NM_W, 24);
@@ -346,12 +349,54 @@ MENU_LISTENER(ChangeAMOverlay)
 	AM_UpdateFlags();
 	return true;
 }
-MENU_LISTENER(ChangeAMRotate)
+MENU_LISTENER(ChangeAMMinimapSize)
 {
-	am_rotate = which;
-	AM_UpdateFlags();
+	AM_ChangeResolution();
 	return true;
 }
+MENU_LISTENER(ChangeAMRevealMap)
+{
+	am_revealmap = which;
+	return true;
+}
+MENU_LISTENER(ChangeAMThingSize)
+{
+	am_thingsize = which;
+	return true;
+}
+MENU_LISTENER(ChangeAMMinimap)
+{
+	// Off, Framed or Floating
+	am_minimap = which != 0;
+	if(am_minimap)
+		am_minimapstyle = which - 1;
+	AM_UpdateFlags();
+	AM_ChangeResolution();
+	return true;
+}
+#define AM_KIND_LISTENERS(name, kind) \
+	MENU_LISTENER(ChangeAM##name##EnemyMode) \
+	{ \
+		am_enemymode[kind] = which; \
+		AM_UpdateFlags(); \
+		return true; \
+	} \
+	MENU_LISTENER(ChangeAM##name##ObjectMode) \
+	{ \
+		am_objectmode[kind] = AMSM_Explored + which; \
+		AM_UpdateFlags(); \
+		return true; \
+	} \
+	MENU_LISTENER(ChangeAM##name##DecorationMode) \
+	{ \
+		am_decorationmode[kind] = which; \
+		AM_UpdateFlags(); \
+		return true; \
+	}
+AM_KIND_LISTENERS(Full, AMK_Full)
+AM_KIND_LISTENERS(Overlay, AMK_Overlay)
+AM_KIND_LISTENERS(Minimap, AMK_Minimap)
+#undef AM_KIND_LISTENERS
 MENU_LISTENER(AdjustViewSize)
 {
 	NewViewSize(viewsize);
@@ -551,16 +596,59 @@ void CreateMenus()
 		controls.addItem(new ControlMenuItem(controlScheme[i]));
 	}
 
-	const char* rotateOptions[] = { language["STR_AMROTATEOFF"], language["STR_AMROTATEON"], language["STR_AMROTATEOVERLAY"] };
 	const char* overlayOptions[] = { language["STR_AMOVERLAYOFF"], language["STR_AMOVERLAYON"], language["STR_AMOVERLAYBOTH"] };
+	const char* thingSizeOptions[] = { language["STR_AMTHINGSIZELARGE"], language["STR_AMTHINGSIZETILE"] };
+	const char* revealOptions[] = { language["STR_AMREVEALOFF"], language["STR_AMREVEALGRAY"], language["STR_AMREVEALLINES"], language["STR_AMREVEALFULL"] };
+	const char* minimapOptions[] = { language["STR_AMMINIMAPOFF"], language["STR_AMMINIMAPFRAMED"], language["STR_AMMINIMAPFLOATING"] };
 	automapMenu.setHeadText(language["STR_AMOPTIONS"]);
 	automapMenu.addItem(new MultipleChoiceMenuItem(ChangeAMOverlay, overlayOptions, 3, am_overlay));
-	automapMenu.addItem(new MultipleChoiceMenuItem(ChangeAMRotate, rotateOptions, 3, am_rotate));
-	automapMenu.addItem(new BooleanMenuItem(language["STR_AMTEXTURES"], am_drawtexturedwalls, ChangeAutomapFlag));
-	automapMenu.addItem(new BooleanMenuItem(language["STR_AMFLOORS"], am_drawfloors, ChangeAutomapFlag));
-	automapMenu.addItem(new BooleanMenuItem(language["STR_AMTEXTUREDOVERLAY"], am_overlaytextured, ChangeAutomapFlag));
+	automapMenu.addItem(new MultipleChoiceMenuItem(ChangeAMMinimap, minimapOptions, 3, am_minimap ? 1 + am_minimapstyle : 0));
+	automapMenu.addItem(new MenuSwitcherMenuItem(language["STR_AMFULLOPTIONS"], amFullMenu));
+	automapMenu.addItem(new MenuSwitcherMenuItem(language["STR_AMOVERLAYOPTIONS"], amOverlayMenu));
+	automapMenu.addItem(new MenuSwitcherMenuItem(language["STR_AMMINIMAPOPTIONS"], amMinimapMenu));
+	automapMenu.addItem(new MultipleChoiceMenuItem(ChangeAMRevealMap, revealOptions, 4, am_revealmap));
+	automapMenu.addItem(new MultipleChoiceMenuItem(ChangeAMThingSize, thingSizeOptions, 2, am_thingsize));
 	automapMenu.addItem(new BooleanMenuItem(language["STR_AMRATIOS"], am_showratios, ChangeAutomapFlag));
 	automapMenu.addItem(new BooleanMenuItem(language["STR_AMPAUSE"], am_pause, ChangeAutomapFlag));
+
+	amFullMenu.setHeadText(language["STR_AMFULLOPTIONS"]);
+	amFullMenu.addItem(new BooleanMenuItem(language["STR_AMROTATE"], am_rotate, ChangeAutomapFlag));
+	amFullMenu.addItem(new BooleanMenuItem(language["STR_AMTEXTURES"], am_drawtexturedwalls, ChangeAutomapFlag));
+	amFullMenu.addItem(new BooleanMenuItem(language["STR_AMFLOORS"], am_drawfloors, ChangeAutomapFlag));
+	amOverlayMenu.setHeadText(language["STR_AMOVERLAYOPTIONS"]);
+	amOverlayMenu.addItem(new BooleanMenuItem(language["STR_AMROTATE"], am_overlayrotate, ChangeAutomapFlag));
+	amOverlayMenu.addItem(new BooleanMenuItem(language["STR_AMTEXTURES"], am_overlaytextured, ChangeAutomapFlag));
+	amOverlayMenu.addItem(new BooleanMenuItem(language["STR_AMFLOORS"], am_overlayfloors, ChangeAutomapFlag));
+	amMinimapMenu.setHeadText(language["STR_AMMINIMAPOPTIONS"]);
+	amMinimapMenu.addItem(new LabelMenuItem(language["STR_AMMINIMAPSIZE"]));
+	amMinimapMenu.addItem(new SliderMenuItem(am_minimapsize, 110, AM_MINIMAPSIZE_MAX, language["STR_SMALL"], language["STR_LARGE"], ChangeAMMinimapSize));
+	amMinimapMenu.addItem(new LabelMenuItem(language["STR_AMMINIMAPTRANSLUCENCY"]));
+	amMinimapMenu.addItem(new SliderMenuItem(am_minimaptranslucency, 110, AM_MINIMAPTRANSLUCENCY_MAX, language["STR_AMSOLID"], language["STR_AMCLEAR"]));
+	amMinimapMenu.addItem(new LabelMenuItem(language["STR_AMMINIMAPZOOM"]));
+	amMinimapMenu.addItem(new SliderMenuItem(am_minimapzoom, 110, AM_MINIMAPZOOM_MAX, language["STR_AMFAR"], language["STR_AMCLOSE"], ChangeAutomapFlag));
+	amMinimapMenu.addItem(new BooleanMenuItem(language["STR_AMROTATE"], am_minimaprotate, ChangeAutomapFlag));
+	amMinimapMenu.addItem(new BooleanMenuItem(language["STR_AMTEXTURES"], am_minimaptextured, ChangeAutomapFlag));
+	amMinimapMenu.addItem(new BooleanMenuItem(language["STR_AMFLOORS"], am_minimapfloors, ChangeAutomapFlag));
+
+	const char* enemyModeOptions[] = { language["STR_AMENEMIESOFF"], language["STR_AMENEMIESINSIGHT"], language["STR_AMENEMIESEXPLORED"], language["STR_AMENEMIESALL"] };
+	const char* objectModeOptions[] = { language["STR_AMOBJECTSEXPLORED"], language["STR_AMOBJECTSALL"] };
+	const char* decorationModeOptions[] = { language["STR_AMDECORATIONSOFF"], language["STR_AMDECORATIONSOBSTACLES"], language["STR_AMDECORATIONSALL"] };
+	const char* const showStrings[NUM_AMSHOW] = {
+		"STR_AMSHOWSECRETWALLS", "STR_AMSHOWKEYS", "STR_AMSHOWWEAPONS", "STR_AMSHOWAMMO",
+		"STR_AMSHOWHEALTH", "STR_AMSHOWTREASURE", "STR_AMSHOWEXTRALIVES", "STR_AMSHOWCORPSES"
+	};
+	Menu* const kindMenus[NUM_AMKINDS] = { &amFullMenu, &amOverlayMenu, &amMinimapMenu };
+	MENU_LISTENER_PROTOTYPE(enemyModeListeners[NUM_AMKINDS]) = { ChangeAMFullEnemyMode, ChangeAMOverlayEnemyMode, ChangeAMMinimapEnemyMode };
+	MENU_LISTENER_PROTOTYPE(objectModeListeners[NUM_AMKINDS]) = { ChangeAMFullObjectMode, ChangeAMOverlayObjectMode, ChangeAMMinimapObjectMode };
+	MENU_LISTENER_PROTOTYPE(decorationModeListeners[NUM_AMKINDS]) = { ChangeAMFullDecorationMode, ChangeAMOverlayDecorationMode, ChangeAMMinimapDecorationMode };
+	for(unsigned int kind = 0;kind < NUM_AMKINDS;++kind)
+	{
+		kindMenus[kind]->addItem(new MultipleChoiceMenuItem(enemyModeListeners[kind], enemyModeOptions, 4, am_enemymode[kind]));
+		kindMenus[kind]->addItem(new MultipleChoiceMenuItem(objectModeListeners[kind], objectModeOptions, 2, am_objectmode[kind] - AMSM_Explored));
+		for(unsigned int what = 0;what < NUM_AMSHOW;++what)
+			kindMenus[kind]->addItem(new BooleanMenuItem(language[showStrings[what]], am_show[kind][what], ChangeAutomapFlag));
+		kindMenus[kind]->addItem(new MultipleChoiceMenuItem(decorationModeListeners[kind], decorationModeOptions, 3, am_decorationmode[kind]));
+	}
 }
 
 ////////////////////////////////////////////////////////////////////

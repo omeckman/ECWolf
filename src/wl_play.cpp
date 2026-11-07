@@ -1047,7 +1047,8 @@ void PlayLoop (void)
 	memset (control[ConsolePlayer].buttonstate, 0, sizeof (control[ConsolePlayer].buttonstate));
 	ClearPaletteShifts ();
 
-	if(automap != AMA_Off)
+	// Minimap stays up between levels
+	if(automap != AMA_Off && automap != AMA_Mini)
 	{
 			// Force the automap to off if it were previously on, unpause the game if am_pause
 		automap = AMA_Off;
