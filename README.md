@@ -1,3 +1,18 @@
+Minimap Branch
+==============
+
+![Minimap in the top left of the view](docs/minimap.png)
+
+- adds an optional minimap to the top left of the view
+- with or without frame (floating: only the map itself is darkened)
+- adjustable size, zoom and translucency, optionally rotating with the player
+- full map, overlay and minimap now each have their own settings (rotate, textured walls, floors, what gets marked)
+- configurable markers: enemies (off, in sight, explored, all), objects (explored, all), secret walls, keys, weapons, ammo, health, treasure, extra lives, corpses and decorations
+- map reveal cheat: unexplored parts grayed out, as lines, or in full
+- explored floors stand out from unexplored and merely revealed areas
+- the automap key cycles off → minimap → overlay → full map, skipping disabled ones; an active minimap is remembered
+- includes the fix for rays slipping past closed doors at exact tile corners (submitted upstream separately)
+
 ECWolf
 ======
 
