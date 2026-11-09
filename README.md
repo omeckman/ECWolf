@@ -1,6 +1,8 @@
 Minimap Branch
 ==============
 
+Developed with AI assistance (Claude)
+
 ![Minimap in the top left of the view](docs/minimap.png)
 
 - adds an optional minimap to the top left of the view
