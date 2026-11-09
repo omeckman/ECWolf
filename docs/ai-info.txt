@@ -1,0 +1,1 @@
+Door corner leak fix made with AI assistance (Claude)
